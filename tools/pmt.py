@@ -10,6 +10,7 @@ Standard library only. The decoder applies every reader rule in FORMAT.md sectio
 executable form of those rules.
 """
 
+import mmap
 import struct
 import sys
 import zlib
@@ -505,7 +506,8 @@ class PmtFile:
     """An opened PMT file, validated per FORMAT.md section 8. Tiles are checked when read."""
 
     def __init__(self, data):
-        self.data = data = bytes(data)
+        # A memory map stays one (open_pmt_mapped: a 2 GB file is not copied); anything else becomes bytes.
+        self.data = data = data if isinstance(data, mmap.mmap) else bytes(data)
         if len(data) < FIXED_HEADER:
             raise PmtError("shorter than the fixed header")
         (magic, self.major, self.minor, hsize, hcrc, fsize, self.kind, nlev, flags, self.build_time,
@@ -650,6 +652,12 @@ class PmtFile:
 def open_pmt(path):
     with open(path, "rb") as f:
         return PmtFile(f.read())
+
+
+def open_pmt_mapped(path):
+    """open_pmt for files too large to read into memory (split_pieces.py): the file is memory-mapped, read-only."""
+    with open(path, "rb") as f:
+        return PmtFile(mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ))
 
 
 # ---- canonical dump ------------------------------------------------------------------------------------------------

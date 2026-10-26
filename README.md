@@ -61,6 +61,11 @@ builder uses it.
   propeller rules left out); the coverage grid holds only the cells with zones.
 - `tools/fetch_fwc_zones.py <out_dir>`: fetches those two FWC layers as GeoJSON (WGS 84) in pages by OBJECTID (the
   server cuts large responses short), checks every feature arrived, and records URLs, time and SHA-256.
+- `tools/split_pieces.py OUT_DIR --release N --pack-name NAME --layer water=a.pmt,b.pmt ...`: cuts a built pack
+  into the pieces of a map release (one layer x one zoom-6 cell, tiles copied as they are, deterministic so an
+  unchanged cell keeps its SHA-256) and writes the release's unsigned manifest; `tools/sign_manifest.py` signs it
+  (ECDSA P-256, low-S). The format and the rules: pwca_panoptes `docs/design/PANOPTES_MAP_UPDATES_CONTRACT.md`
+  (THES-260, map updates over Wi-Fi and by Hermes).
 - `tools/pmt.py dump|check FILE`: prints a PMT file's canonical dump, or checks every tile.
 - `tools/pmt_crop.py`: cuts a region out of a PMT file by tile ranges (small test packs).
 - `tools/build_overview.py <natural_earth_dir> <out.pmt>`: the overview (base layer, z2-9) from the six Natural
