@@ -51,11 +51,11 @@ T12 = [(10 * 64 + 3, 20 * 64 + 5), (10 * 64 + 60, 20 * 64 + 1), (11 * 64, 20 * 6
 
 def split(out, *layer_args, release=7):
     args = ["split_pieces.py", str(out), "--release", str(release), "--pack-name", "NA-TEST", "--min-fw", "0.4.34",
-            "--source-date", "20261101"]
+            "--source-date", "20261101", "--test-release"]
     for a in layer_args:
         args += ["--layer", a]
     assert split_pieces.main(args) == 0
-    return (out / f"R{release:08d}.man.unsigned").read_bytes()
+    return (out / f"R{release:010d}.man.unsigned").read_bytes()
 
 
 class Split(unittest.TestCase):
@@ -154,6 +154,29 @@ class Split(unittest.TestCase):
             split(self.d / "o2", f"rivers={src}")
 
 
+class Versions(unittest.TestCase):
+    def test_scheme(self):
+        self.assertTrue(manifest.release_ok(2026110101))
+        self.assertEqual(manifest.version_text(2026110101), "2026.11.01")
+        self.assertEqual(manifest.version_text(2026110102), "2026.11.01-2")
+        self.assertEqual(manifest.version_text(7), "7")
+        self.assertFalse(manifest.release_ok(2026130101) or manifest.release_ok(2026110100) or manifest.release_ok(7))
+        self.assertLess(2026110199, 2026120101)
+        self.assertLess(2026123199, 2027010101)
+
+    def test_split_wants_a_date(self):
+        with tempfile.TemporaryDirectory() as t:
+            src = water_file(Path(t) / "w.pmt", T12)
+            with self.assertRaises(split_pieces.SplitError):
+                split_pieces.main(["x", str(Path(t) / "o"), "--release", "7", "--pack-name", "NORTH AMERICA",
+                                   "--layer", f"water={src}"])
+            self.assertEqual(split_pieces.main(["x", str(Path(t) / "o2"), "--release", "2026110101", "--pack-name",
+                                                "NORTH AMERICA", "--layer", f"water={src}"]), 0)
+            body = (Path(t) / "o2" / "R2026110101.man.unsigned").read_bytes()
+            info = manifest.parse_body(body)
+            self.assertEqual((info["release"], info["pack_name"]), (2026110101, "NORTH AMERICA"))
+
+
 class Manifest(unittest.TestCase):
     def setUp(self):
         from cryptography.hazmat.primitives.asymmetric import ec
@@ -239,8 +262,8 @@ class Manifest(unittest.TestCase):
             (d / "key.pem").write_bytes(self.key.private_bytes(serialization.Encoding.PEM,
                                                                serialization.PrivateFormat.PKCS8,
                                                                serialization.NoEncryption()))
-            unsigned = d / "out" / "R00000007.man.unsigned"
-            out = d / "R00000007.man"
+            unsigned = d / "out" / "R0000000007.man.unsigned"
+            out = d / "R0000000007.man"
             self.assertEqual(sign_manifest.main(["x", str(unsigned), str(d / "key.pem"), str(out), "--pieces",
                                                  str(d / "out" / "pieces")]), 0)
             data = out.read_bytes()

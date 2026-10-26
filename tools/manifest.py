@@ -57,6 +57,23 @@ def pack_version(text):
     return major << 24 | minor << 16 | patch
 
 
+def release_ok(release):
+    """A release number is the date its data was built and the build of that day: yyyymmddNN (2026110101 = the 1st
+    of November 2026, its first build). The number orders releases (the display takes one only above its own), and
+    the display shows it as a version: 2026.11.01, or 2026.11.01-2 for the day's second build. (pwca_panoptes
+    docs/design/PANOPTES_MAP_UPDATES_CONTRACT.md section 2.5.)"""
+    build, day, month, year = release % 100, release // 100 % 100, release // 10000 % 100, release // 1000000
+    return 2020 <= year <= 2099 and 1 <= month <= 12 and 1 <= day <= 31 and build >= 1
+
+
+def version_text(release):
+    """The version as the display shows it (map_manifest.c map_version_text)."""
+    if not release_ok(release):
+        return str(release)
+    build, day, month, year = release % 100, release // 100 % 100, release // 10000 % 100, release // 1000000
+    return f"{year:04d}.{month:02d}.{day:02d}" + ("" if build == 1 else f"-{build}")
+
+
 def record_key(r):
     return (r["layer"], r["cell_y"], r["cell_x"])
 

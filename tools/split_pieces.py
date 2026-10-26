@@ -2,7 +2,8 @@
 docs/design/PANOPTES_MAP_UPDATES_CONTRACT.md sections 1 and 2) and writes the release's unsigned manifest.
 
 Usage:
-    python tools/split_pieces.py OUT_DIR --release N --pack-name NAME [--min-fw X.Y.Z] [--source-date YYYYMMDD]
+    python tools/split_pieces.py OUT_DIR --release yyyymmddNN --pack-name "NORTH AMERICA" [--min-fw X.Y.Z]
+                                 [--source-date YYYYMMDD]
                                  --layer water=a.pmt,b.pmt --layer roads=r.pmt [--layer ...]
 
 A piece is one layer x one zoom-6 Web Mercator cell: a PMT file holding exactly the tiles, of every level, whose
@@ -141,12 +142,17 @@ def layer_pieces(name, paths):
 def main(argv):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("out_dir")
-    ap.add_argument("--release", type=int, required=True)
-    ap.add_argument("--pack-name", required=True)
+    ap.add_argument("--release", type=int, required=True,
+                    help="yyyymmddNN: the data's build date and the build of that day (the version shown)")
+    ap.add_argument("--pack-name", required=True,
+                    help="the map's name as the display shows it, in capitals, e.g. 'NORTH AMERICA' (24 at most)")
+    ap.add_argument("--test-release", action="store_true", help="a release number that is not a date (tests only)")
     ap.add_argument("--min-fw", default="")
     ap.add_argument("--source-date", type=int, default=int(time.strftime("%Y%m%d", time.gmtime())))
     ap.add_argument("--layer", action="append", required=True, help="NAME=file.pmt[,file.pmt...]")
     a = ap.parse_args(argv[1:])
+    if not a.test_release and not manifest.release_ok(a.release):
+        raise SplitError(f"--release {a.release}: not yyyymmddNN (a date and the build of that day)")
     out = Path(a.out_dir)
     if out.exists() and any(out.iterdir()):
         raise SplitError(f"{out} is not empty")
@@ -172,7 +178,7 @@ def main(argv):
         print(f"{name}: {len(pieces)} pieces, {sum(len(d) for d in pieces.values())} bytes")
     body = manifest.encode_body(release=a.release, min_fw=manifest.pack_version(a.min_fw), built=int(time.time()),
                                 pack_name=a.pack_name, records=records)
-    target = out / f"R{a.release:08d}.man.unsigned"
+    target = out / f"R{a.release:010d}.man.unsigned"
     target.write_bytes(body)
     print(f"{target}: {len(records)} pieces, {sum(r['size'] for r in records)} bytes; sign it with sign_manifest.py")
     return 0
