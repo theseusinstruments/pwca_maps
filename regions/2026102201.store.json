@@ -1,0 +1,197 @@
+{
+ "release": 2026102201,
+ "regions": [
+  {
+   "code": "new_england",
+   "name": "New England",
+   "country": "United States",
+   "codes": [
+    "US-ME",
+    "US-NH",
+    "US-VT",
+    "US-MA",
+    "US-RI",
+    "US-CT"
+   ]
+  },
+  {
+   "code": "mid_atlantic",
+   "name": "Mid-Atlantic",
+   "country": "United States",
+   "codes": [
+    "US-NY",
+    "US-NJ",
+    "US-PA",
+    "US-DE",
+    "US-MD",
+    "US-DC",
+    "US-VA",
+    "US-WV"
+   ]
+  },
+  {
+   "code": "southeast",
+   "name": "Southeast",
+   "country": "United States",
+   "codes": [
+    "US-NC",
+    "US-SC",
+    "US-GA",
+    "US-FL"
+   ]
+  },
+  {
+   "code": "gulf_coast",
+   "name": "Gulf Coast",
+   "country": "United States",
+   "codes": [
+    "US-AL",
+    "US-MS",
+    "US-LA",
+    "US-TX"
+   ]
+  },
+  {
+   "code": "mid_south",
+   "name": "Mid-South",
+   "country": "United States",
+   "codes": [
+    "US-TN",
+    "US-KY",
+    "US-AR",
+    "US-OK",
+    "US-MO"
+   ]
+  },
+  {
+   "code": "midwest",
+   "name": "Midwest",
+   "country": "United States",
+   "codes": [
+    "US-OH",
+    "US-IN",
+    "US-IL",
+    "US-MI",
+    "US-WI",
+    "US-MN"
+   ]
+  },
+  {
+   "code": "great_plains",
+   "name": "Great Plains",
+   "country": "United States",
+   "codes": [
+    "US-ND",
+    "US-SD",
+    "US-NE",
+    "US-KS",
+    "US-IA"
+   ]
+  },
+  {
+   "code": "mountain_west",
+   "name": "Mountain West",
+   "country": "United States",
+   "codes": [
+    "US-MT",
+    "US-ID",
+    "US-WY",
+    "US-NV",
+    "US-UT",
+    "US-CO",
+    "US-AZ",
+    "US-NM"
+   ]
+  },
+  {
+   "code": "pacific_coast",
+   "name": "Pacific Coast",
+   "country": "United States",
+   "codes": [
+    "US-WA",
+    "US-OR",
+    "US-CA"
+   ]
+  },
+  {
+   "code": "alaska",
+   "name": "Alaska",
+   "country": "United States",
+   "codes": [
+    "US-AK"
+   ]
+  },
+  {
+   "code": "hawaii",
+   "name": "Hawaii",
+   "country": "United States",
+   "codes": [
+    "US-HI"
+   ]
+  },
+  {
+   "code": "british_columbia",
+   "name": "British Columbia",
+   "country": "Canada",
+   "codes": [
+    "CA-BC"
+   ]
+  },
+  {
+   "code": "prairies",
+   "name": "Prairies",
+   "country": "Canada",
+   "codes": [
+    "CA-AB",
+    "CA-SK",
+    "CA-MB"
+   ]
+  },
+  {
+   "code": "ontario",
+   "name": "Ontario",
+   "country": "Canada",
+   "codes": [
+    "CA-ON"
+   ]
+  },
+  {
+   "code": "quebec",
+   "name": "Quebec",
+   "country": "Canada",
+   "codes": [
+    "CA-QC"
+   ]
+  },
+  {
+   "code": "atlantic_canada",
+   "name": "Atlantic Canada",
+   "country": "Canada",
+   "codes": [
+    "CA-NB",
+    "CA-NS",
+    "CA-PE",
+    "CA-NL"
+   ]
+  },
+  {
+   "code": "the_north",
+   "name": "The North",
+   "country": "Canada",
+   "codes": [
+    "CA-YT",
+    "CA-NT",
+    "CA-NU",
+    "GL"
+   ]
+  },
+  {
+   "code": "mexico",
+   "name": "Mexico",
+   "country": "Mexico",
+   "codes": [
+    "MX"
+   ]
+  }
+ ]
+}

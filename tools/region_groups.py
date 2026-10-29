@@ -14,6 +14,14 @@ CT); everything else stands alone. Shared border cells stay on a card while any 
     python tools/region_groups.py --pbf sources/north-america-latest.osm.pbf --manifest R2026102201.man \\
         --cache <dir> --out regions/2026102201.json [--reg-body R2026102201.reg.body] [--processes 5]
 
+THE STORE REGIONS (Branding - 5's BRANDING5_WEB_SHOP_ITEM.md section 2, "Store regions"; the owner, 2026-10-29: "Okay,
+this is perfect."): the shop sells named groups of the release's codes, regions/<release>.store.json, written by hand
+and reviewed with the release: {release, regions: [{code, name, country, codes}]}. --check-store checks one against the
+release's table: every code in exactly one store region, no code the table lacks, every card group whole in one, the
+store codes in the database's key rule and the release the same. No extract needed:
+
+    python tools/region_groups.py --check-store regions/2026102201.store.json --table regions/2026102201.json
+
 --reg-body writes the catalogue's unsigned body (Hermes' crates/hermes-core/src/map/regions.rs reads it); Web/API
 signs it with the map release key over SHA-256("PWC-MAP-REGIONS-V1" || body) and appends the 64-byte signature.
 The three passes over the extract (relations, their ways, their nodes) are cached in --cache.
@@ -24,6 +32,7 @@ import hashlib
 import json
 import os
 import pickle
+import re
 import struct
 import sys
 
@@ -222,15 +231,76 @@ def manifest_cells(path):
     return struct.unpack_from("<I", data, 8)[0], cells, data
 
 
+STORE_CODE = re.compile(r"^[a-z][a-z0-9_]{1,31}$")  # the shop database's key rule (migration 0193)
+
+
+def store_problems(tbl, store):
+    """What is wrong with a store regions file against the release's region table; [] when nothing is."""
+    problems = []
+    if store.get("release") != tbl.get("release"):
+        problems.append(f"release {store.get('release')} is not the table's {tbl.get('release')}")
+    known = {r["code"]: r for r in tbl["regions"]}
+    seen = {}
+    names = set()
+    for s in store.get("regions", []):
+        code = s.get("code", "")
+        if not STORE_CODE.match(code):
+            problems.append(f"store code {code!r} is not lowercase letters, digits and underscores")
+        if not s.get("name") or s["name"] in names:
+            problems.append(f"{code}: no name, or a name used twice")
+        names.add(s.get("name"))
+        if not s.get("country"):
+            problems.append(f"{code}: no country")
+        if not s.get("codes"):
+            problems.append(f"{code}: no codes")
+        for c in s.get("codes", []):
+            if c not in known:
+                problems.append(f"{code}: {c} is not a region of the release")
+            elif c in seen:
+                problems.append(f"{c} is in {seen[c]} and {code}")
+            seen[c] = code
+    for c in known:
+        if c not in seen:
+            problems.append(f"{c} is in no store region")
+    groups_of = collections.defaultdict(set)
+    for c, r in known.items():
+        groups_of[r["group"]].add(c)
+    for members in groups_of.values():
+        homes = {seen.get(c) for c in members}
+        if len(members) > 1 and len(homes) > 1:
+            problems.append(f"card group {' + '.join(sorted(members))} is split across {sorted(h or '-' for h in homes)}")
+    return problems
+
+
+def check_store(store_path, table_path):
+    tbl = json.load(open(table_path, encoding="utf-8"))
+    store = json.load(open(store_path, encoding="utf-8"))
+    problems = store_problems(tbl, store)
+    for p in problems:
+        print("PROBLEM:", p)
+    if not problems:
+        print(f"{len(store['regions'])} store regions hold the release's {len(tbl['regions'])} codes, each once,"
+              " every card group whole: OK")
+    return not problems
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    ap.add_argument("--pbf", required=True)
-    ap.add_argument("--manifest", required=True)
-    ap.add_argument("--cache", required=True)
-    ap.add_argument("--out", required=True)
+    ap.add_argument("--check-store", help="a regions/<release>.store.json to check against --table, then stop")
+    ap.add_argument("--table", help="the release's region table, for --check-store")
+    ap.add_argument("--pbf")
+    ap.add_argument("--manifest")
+    ap.add_argument("--cache")
+    ap.add_argument("--out")
     ap.add_argument("--reg-body")
     ap.add_argument("--processes", type=int, default=5)
     a = ap.parse_args(argv)
+    if a.check_store:
+        if not a.table:
+            ap.error("--check-store needs --table")
+        raise SystemExit(0 if check_store(a.check_store, a.table) else 1)
+    if not (a.pbf and a.manifest and a.cache and a.out):
+        ap.error("--pbf, --manifest, --cache and --out are needed to build a table")
     release, cells, man = manifest_cells(a.manifest)
     rels, ways, nodes = extract(a.pbf, a.cache, a.processes)
     bounds = boundaries(rels, ways, nodes)
