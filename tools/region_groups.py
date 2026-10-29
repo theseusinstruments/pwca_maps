@@ -29,25 +29,33 @@ app/core/map_regions.py search_places; the API adds the states, provinces and st
     python tools/region_groups.py --places-out regions/2026102201.places.json --table regions/2026102201.json \\
         --cache <dir> --release-dir C:/pwca_maps_releases/R2026102201 --water-names out/na-full/water/names.tsv
 
-{release, places: [{name, kind, states, rank}]}, one place a line; states are the table's codes; rank 0 is best.
+{release, places: [{name, kind, states, rank, lat, lon}]}, one place a line; states are the table's codes; rank 0 is
+best; lat and lon (degrees, 4 decimals) the point a map centres on (the group ride map's search reads the same file).
   - Cities, towns and villages: the release's places layer (layer 5 pieces, the level cut at zoom 12; hamlets left
     out). A point: its one code. Rank: city 0, town 1, village 2.
-  - Marinas: the named marinas, fuel docks and boat ramps of the release's symbols layer (layer 6 pieces, the level
-    for zoom 14, where names are written), kind "marina". A point. Rank 2.
+  - Marinas and ramps: the named marinas, fuel docks and boat ramps of the release's symbols layer (layer 6 pieces,
+    the level for zoom 14, where names are written). A point. Kind "ramp" (rank 1: riders search for their launch)
+    for a slipway, and for a marina or fuel dock whose name says launch, ramp or access site (RAMP_WORDS: OSM maps
+    many public water access sites as marinas); else "marina" (rank 2). A name of GENERIC_WORDS only ("Boat
+    Launch", "Public Access", "Marina") is left out.
   - Rivers: names.tsv's label points of named rivers (one every 1.5 km) and named river areas; the points of one name
     within RIVER_LINK of each other are one stretch, and stretches of one name sharing a code are one river (a lake on
-    it breaks its points), listed in every code its points fall in. Rank by length.
-  - Lakes and reservoirs of MIN_LAKE_M2 or more: names.tsv's label point gives a code; a lake of OUTLINE_ALWAYS_M2 or
-    more, or one with a state line within NEAR_FACTOR equal-area radii of its label point, is traced on the release's
-    water layer (layer 1 pieces, its polygons rastered RES x RES a tile and followed across tiles from the label
-    point, at the coarsest level that draws it 4 pixels in radius), and listed in every code its outline and water lie
-    in (Lake Havasu: US-AZ and US-CA). Rank by area.
+    it breaks its points), listed in every code its points fall in. Rank by length. Its point: the label point
+    nearest the mean of its points.
+  - Lakes and reservoirs of MIN_LAKE_M2 or more: names.tsv's label point is its point and gives a code; a lake of
+    OUTLINE_ALWAYS_M2 or more, or one with a state line within NEAR_FACTOR equal-area radii of its label point, is
+    traced on the release's water layer (layer 1 pieces, its polygons rastered RES x RES a tile and followed across
+    tiles from the label point, at the coarsest level that draws it 4 pixels in radius), and listed in every code its
+    outline and water lie in (Lake Havasu: US-AZ and US-CA). Rank by area.
   - Bays and straits: names.tsv's named bay areas. A bay is not drawn (the sea under it is), so the water layer has
     no outline of it: its codes are those of its label point and of 8 points round it at its equal-area radius.
     Rank by area. A bay mapped as a point only (Tampa Bay, Georgian Bay) is the places layer's BAY_POINT_CLASS less
     the names names.tsv has (that class also holds mid-sized lakes): its point's code, rank 2.
+  - Not yet: OHV areas (kind "ohv"). No layer of the release or the build carries them; they need a pass over the
+    extract. The self-check looks for Hungry Valley once the index holds any.
   - Left out: hamlets, unnamed things, canals, streams, drains, harbour basins, street addresses and ZIP codes. One
-    entry per name, kind and codes (the API shows no more), with the best rank.
+    entry per name, kind and codes (the API shows no more), with the best rank and the point of its best (largest)
+    instance.
 The boundaries come from --cache (with --pbf only when the cache is not whole: that is the heavy part). The step ends
 with a self-check (the locator on two squares; Lake Havasu City in US-AZ, Lake Havasu in US-AZ and US-CA, ...), which
 --check-places runs on a written index:
@@ -339,16 +347,26 @@ PLACE_RANK = {"city": 0, "town": 1, "village": 2}
 # water areas of 25 ha to 5 km2; a name of that class that names.tsv does not have is such a bay.
 BAY_POINT_CLASS = 20
 BAY_POINT_RANK = 2
-# build_extras.py's symbol classes: 1 fuel dock, 2 marina, 3 boat ramp (named ones only); all three are "marina".
-SYMBOL_KINDS = {1: "marina", 2: "marina", 3: "marina"}
-MARINA_RANK = 2
+# build_extras.py's symbol classes: 1 fuel dock, 2 marina, 3 boat ramp (leisure=slipway or a seamark slipway), named
+# ones only. A slipway is kind "ramp"; a marina or fuel dock is "marina", unless its name says it is a launch (OSM
+# maps many public water access sites as leisure=marina).
+SYMBOL_KINDS = {1: "marina", 2: "marina", 3: "ramp"}
+SYMBOL_RAMP = 3
+RAMP_WORDS = re.compile(r"\b(boat ramp|ramp|launch|launching|slipway|slip way|water access|access site|boat access|"
+                        r"public access|fishing access|put-in|put in|take-out)\b", re.I)
+KIND_RANK = {"marina": 2, "ramp": 1}
+# A marina or ramp whose name has only these words is left out (it names no place).
+GENERIC_WORDS = set("""a and the of at to for in out on boat boats launch launching ramp ramps marina marinas public
+access water site sites slipway slip slips way fishing fish dock docks landing fuel gas kayak canoe carry put take
+area small craft hand trailer parking lot entrance new old main north south east west upper lower
+private community city county state public""".split())
 # names.tsv (build_pack.py, the water-full build): A = a named water area (class 2 lake, 3 reservoir, 4 river area,
 # 5 canal, harbour or marina basin: left out), B = a named bay or strait (its area), L = a label point of a named
 # waterway every 1.5 km (16 river; canals, streams and drains are left out).
 LAKE_CLASSES = (2, 3)
 RIVER_AREA_CLASS = 4
 RIVER_LINE_CLASS = 16
-MIN_LAKE_M2 = 40_000.0  # 4 ha (10 acres): smaller named water is a pond
+MIN_LAKE_M2 = 100_000.0  # 10 ha (25 acres): smaller named water is a pond (the lead, 2026-10-29: from 4 ha)
 # rank: (from size, rank), largest first; below the last, rank 3. Lakes and bays by area (m2), rivers by length (m).
 LAKE_RANKS = [(50e6, 0), (5e6, 1), (0.5e6, 2)]
 BAY_RANKS = [(500e6, 0), (20e6, 1), (1e6, 2)]
@@ -359,10 +377,19 @@ RIVER_LINK = 0.016  # zoom-6 units (10 km at the equator, 5 km at 60 N): label p
 RES = 512  # raster side of a water tile, for tracing a lake
 TRACE_MAX_TILES = 400
 # A known place and the codes it must have (the self-check of --places-out).
-PLACES_EXPECT = [("Lake Havasu City", ("city", "town"), {"US-AZ"}), ("Lake Havasu", ("lake",), {"US-AZ", "US-CA"}),
-                 ("Lake Okeechobee", ("lake",), {"US-FL"}), ("Lake of the Ozarks", ("lake",), {"US-MO"}),
-                 ("Lake of the Woods", ("lake",), {"CA-MB", "CA-ON", "US-MN"}), ("Lake Simcoe", ("lake",), {"CA-ON"}),
-                 ("Lake Havasu Marina", ("marina",), {"US-AZ"})]
+# Known places: (name, kinds, the codes it must have, (lat, lon) it must be near or None, how near in degrees). The
+# self-check of --places-out; an "ohv" entry is checked only once the index holds OHV areas.
+PLACES_EXPECT = [
+    ("Lake Havasu City", ("city", "town"), {"US-AZ"}, (34.48, -114.33), 0.05),
+    ("Lake Havasu", ("lake",), {"US-AZ", "US-CA"}, (34.41, -114.29), 0.2),
+    ("Lake Okeechobee", ("lake",), {"US-FL"}, (26.94, -80.80), 0.3),
+    ("Lake of the Ozarks", ("lake",), {"US-MO"}, None, 0),
+    ("Lake of the Woods", ("lake",), {"CA-MB", "CA-ON", "US-MN"}, None, 0),
+    ("Lake Simcoe", ("lake",), {"CA-ON"}, None, 0),
+    ("Lake Havasu Marina", ("marina",), {"US-AZ"}, (34.461, -114.351), 0.01),
+    ("Lees Ferry Boat Launch", ("ramp",), {"US-AZ"}, (36.866, -111.586), 0.01),
+    ("Hungry Valley", ("ohv",), {"US-CA"}, (34.75, -118.85), 0.1),  # an ohv name is matched by its start
+]
 
 
 class Locator:
@@ -426,6 +453,27 @@ def locator_problems():
 
 def to_cell_units(lat_deg, lon_deg):
     return tile_x(np.asarray(lon_deg, float)), tile_y(np.asarray(lat_deg, float))
+
+
+def cell_lat_lon(x, y):
+    """(lat, lon) in degrees, 4 decimals (about 11 m: enough to centre a map), of a point in zoom-6 units."""
+    lon = x / N * 360.0 - 180.0
+    lat = math.degrees(math.atan(math.sinh(math.pi * (1 - 2 * y / N))))
+    return round(lat, 4), round(lon, 4)
+
+
+def generic_symbol_name(name):
+    """True for a marina's or ramp's name made only of generic words ("Boat Launch", "Public Access", "Marina"): it
+    names no place a rider could search for."""
+    words = re.findall(r"[a-z]+", name.lower())
+    return bool(words) and all(w in GENERIC_WORDS for w in words)
+
+
+def symbol_kind(cls, name):
+    """marina or ramp: a slipway is a ramp; so is a marina or fuel dock whose name says it is a launch."""
+    if cls == SYMBOL_RAMP or RAMP_WORDS.search(name):
+        return "ramp"
+    return "marina"
 
 
 def rank_of(size, table):
@@ -611,9 +659,9 @@ def read_water_names(path):
 
 
 def rivers(points, loc_codes):
-    """[(name, codes, total metres)]: a river's label points joined where they lie within RIVER_LINK of each other
-    (one river per name and stretch, so two Mill Rivers in states apart stay two), and stretches sharing a code
-    joined."""
+    """[(name, codes, total metres, x, y)]: a river's label points joined where they lie within RIVER_LINK of each
+    other (one river per name and stretch, so two Mill Rivers in states apart stay two), and stretches sharing a code
+    joined. (x, y): its middle label point, the one nearest the mean of its points (zoom-6 units)."""
     by_name = collections.defaultdict(list)
     for (name, x, y, metres), code in zip(points, loc_codes):
         by_name[name].append((x, y, metres, code))
@@ -637,26 +685,28 @@ def rivers(points, loc_codes):
                         a, b = find((cx, cy)), find(n)
                         if a != b:
                             parent[a] = b
-        groups = collections.defaultdict(lambda: [set(), 0.0])
+        groups = collections.defaultdict(lambda: [set(), 0.0, []])
         for c, members in cell_of.items():
             g = groups[find(c)]
             for i in members:
                 if pts[i][3]:
                     g[0].add(pts[i][3])
                 g[1] += pts[i][2]
+                g[2].append(i)
         # Stretches of one name that share a code are one river (a river broken by a lake on it: the Snake in ID and
         # in ID, OR and WA); the search could not tell them apart anyway.
         merged = []
-        for codes, metres in sorted(groups.values(), key=lambda g: -g[1]):
+        for codes, metres, members in sorted(groups.values(), key=lambda g: -g[1]):
             if not codes:
                 continue
             for m in merged:
                 if m[0] & codes:
                     m[0] |= codes
                     m[1] += metres
+                    m[2] += members
                     break
             else:
-                merged.append([set(codes), metres])
+                merged.append([set(codes), metres, list(members)])
         joined = True
         while joined:
             joined = False
@@ -665,12 +715,16 @@ def rivers(points, loc_codes):
                     if merged[i][0] & merged[j][0]:
                         merged[i][0] |= merged[j][0]
                         merged[i][1] += merged[j][1]
+                        merged[i][2] += merged[j][2]
                         del merged[j]
                         joined = True
                         break
                 if joined:
                     break
-        out += [(name, codes, metres) for codes, metres in merged]
+        for codes, metres, members in merged:
+            xy = np.array([pts[i][:2] for i in members])
+            mid = xy[int(np.argmin(((xy - xy.mean(0)) ** 2).sum(1)))]
+            out.append((name, codes, metres, float(mid[0]), float(mid[1])))
     return out
 
 
@@ -686,11 +740,13 @@ def build_places(table_path, bounds, release_dir, water_names, log=print):
     if release != tbl["release"]:
         raise SystemExit(f"{release_dir} is release {release}, the table {tbl['release']}")
     t0 = time.time()
-    entries = {}  # (name, kind, codes) -> rank
+    entries = {}  # (name, kind, codes) -> (rank, -size, x, y): the best instance's rank and point
 
-    def put(name, kind, states, rank):
+    def put(name, kind, states, rank, x, y, size=0.0):
         key = (name, kind, tuple(sorted(states)))
-        entries[key] = min(rank, entries.get(key, 9))
+        val = (rank, -size, float(x), float(y))
+        if key not in entries or val[:2] < entries[key][:2]:
+            entries[key] = val
 
     rows, area_names = read_water_names(water_names)
     log(f"names.tsv: {len(rows)} rows of lakes, river areas, bays and river label points ({time.time() - t0:.0f} s)")
@@ -699,25 +755,31 @@ def build_places(table_path, bounds, release_dir, water_names, log=print):
     pts = piece_points(pieces[5], 12, 12, set(PLACE_KINDS) | {BAY_POINT_CLASS})
     at = loc.locate([p[1] for p in pts], [p[2] for p in pts])
     n_bays = 0
-    for (cls, _x, _y, name), c in zip(pts, at):
+    for (cls, x, y, name), c in zip(pts, at):
         if c < 0:
             continue
         if cls == BAY_POINT_CLASS:
             if name not in area_names:
                 n_bays += 1
-                put(name, "bay", [codes[c]], BAY_POINT_RANK)
+                put(name, "bay", [codes[c]], BAY_POINT_RANK, x, y)
         else:
-            put(name, PLACE_KINDS[cls], [codes[c]], PLACE_RANK[PLACE_KINDS[cls]])
+            put(name, PLACE_KINDS[cls], [codes[c]], PLACE_RANK[PLACE_KINDS[cls]], x, y)
     log(f"places layer: {sum(1 for p in pts if p[0] != BAY_POINT_CLASS)} cities, towns and villages, {n_bays} bays "
         f"mapped as a point ({time.time() - t0:.0f} s)")
     # Marinas, fuel docks and boat ramps with a name: the symbols layer's level for zoom 14 (names from 14).
     pts = piece_points(pieces[6], 12, 14, set(SYMBOL_KINDS))
     at = loc.locate([p[1] for p in pts], [p[2] for p in pts])
-    for (cls, _x, _y, name), c in zip(pts, at):
-        if c >= 0:
-            put(name, SYMBOL_KINDS[cls], [codes[c]], MARINA_RANK)
-    log(f"symbols layer: {len(pts)} named marinas, fuel docks and boat ramps, {int((at >= 0).sum())} in a region "
-        f"({time.time() - t0:.0f} s)")
+    n_generic = 0
+    for (cls, x, y, name), c in zip(pts, at):
+        if c < 0:
+            continue
+        if generic_symbol_name(name):
+            n_generic += 1
+            continue
+        kind = symbol_kind(cls, name)
+        put(name, kind, [codes[c]], KIND_RANK[kind], x, y)
+    log(f"symbols layer: {len(pts)} named marinas, fuel docks and boat ramps, {int((at >= 0).sum())} in a region, "
+        f"{n_generic} of them with a generic name only ({time.time() - t0:.0f} s)")
     # Water: names.tsv.
     # A river area's size is its area, not a length: it places the river, the label points measure it.
     river_pts = [(name, *to_cell_units(la, lo), size if typ == "L" else 0.0) for typ, cls, size, la, lo, name in rows
@@ -725,8 +787,8 @@ def build_places(table_path, bounds, release_dir, water_names, log=print):
     at = loc.locate([p[1] for p in river_pts], [p[2] for p in river_pts])
     river_list = rivers([(n, float(x), float(y), m) for n, x, y, m in river_pts],
                         [codes[c] if c >= 0 else None for c in at])
-    for name, states, metres in river_list:
-        put(name, "river", states, rank_of(metres, RIVER_RANKS))
+    for name, states, metres, x, y in river_list:
+        put(name, "river", states, rank_of(metres, RIVER_RANKS), x, y, metres)
     log(f"rivers: {len(river_pts)} label points, {len(river_list)} rivers in a region ({time.time() - t0:.0f} s)")
     # Bays: a disc of the bay's own area round its label point (a bay is not drawn, so the water tiles have no
     # outline of it).
@@ -740,11 +802,11 @@ def build_places(table_path, bounds, release_dir, water_names, log=print):
         by.append(np.concatenate([[y], y + rad * np.sin(ang)]))
     at = loc.locate(np.concatenate(bx), np.concatenate(by)).reshape(-1, 9) if bays else np.zeros((0, 9), int)
     n_bays = 0
-    for (_t, _c, size, _la, _lo, name), row in zip(bays, at):
+    for (_t, _c, size, la, lo, name), row in zip(bays, at):
         states = {codes[c] for c in row if c >= 0}
         if states:
             n_bays += 1
-            put(name, "bay", states, rank_of(size, BAY_RANKS))
+            put(name, "bay", states, rank_of(size, BAY_RANKS), *to_cell_units(la, lo), size)
     log(f"bays: {len(bays)}, {n_bays} in a region ({time.time() - t0:.0f} s)")
     # Lakes and reservoirs: the label point's region; a lake near a state line (or large) traced on the water tiles.
     lakes = [r for r in rows if r[0] == "A" and r[1] in LAKE_CLASSES and r[2] >= MIN_LAKE_M2]
@@ -780,24 +842,42 @@ def build_places(table_path, bounds, release_dir, water_names, log=print):
             states.add(codes[row[0]])
         if states:
             n_lakes += 1
-            put(name, "lake", states, rank_of(size, LAKE_RANKS))
+            put(name, "lake", states, rank_of(size, LAKE_RANKS), lx[i], ly[i], size)
     log(f"lakes: {len(traced)} traced, {n_lakes} in a region ({time.time() - t0:.0f} s)")
-    places = [{"name": n, "kind": k, "states": list(s), "rank": r}
-              for (n, k, s), r in sorted(entries.items(), key=lambda e: (e[1], e[0][0], e[0][1], e[0][2]))]
+    places = []
+    for (n, k, s), (r, _size, x, y) in sorted(entries.items(), key=lambda e: (e[1][0], e[0][0], e[0][1], e[0][2])):
+        lat, lon = cell_lat_lon(x, y)
+        places.append({"name": n, "kind": k, "states": list(s), "rank": r, "lat": lat, "lon": lon})
     return {"release": release, "places": places}
 
 
 def places_problems(index):
-    """The known places that are not where they must be."""
+    """The known places that are not where they must be, and any place without a point in North America."""
     problems = locator_problems()
     by_name = collections.defaultdict(list)
     for p in index["places"]:
         by_name[p["name"]].append(p)
-    for name, kinds, states in PLACES_EXPECT:
-        found = [p for p in by_name.get(name, []) if p["kind"] in kinds]
-        if not any(set(p["states"]) == states for p in found):
+    no_point = [p["name"] for p in index["places"] if not (isinstance(p.get("lat"), float) and
+                                                          isinstance(p.get("lon"), float) and 5 <= p["lat"] <= 85
+                                                          and (-180 <= p["lon"] <= -10 or p["lon"] >= 170))]
+    # (the western Aleutians, US-AK, lie past 180 degrees)
+    if no_point:
+        problems.append(f"{len(no_point)} places without a point in North America, e.g. {no_point[:5]}")
+    has_ohv = any(p["kind"] == "ohv" for p in index["places"])
+    for name, kinds, states, near, within in PLACES_EXPECT:
+        if "ohv" in kinds and not has_ohv:
+            continue
+        if "ohv" in kinds:
+            named = [p for p in index["places"] if p["kind"] == "ohv" and p["name"].startswith(name)]
+        else:
+            named = by_name.get(name, [])
+        found = [p for p in named if p["kind"] in kinds and set(p["states"]) == states]
+        if not found:
             problems.append(f"{name} ({'/'.join(kinds)}) is not in {' + '.join(sorted(states))}: "
-                            f"{[p['states'] for p in found] or 'not found'}")
+                            f"{[(p['kind'], p['states']) for p in named] or 'not found'}")
+        elif near and not any(abs(p["lat"] - near[0]) <= within and abs(p["lon"] - near[1]) <= within
+                              for p in found):
+            problems.append(f"{name} is at {[(p['lat'], p['lon']) for p in found]}, not within {within} of {near}")
     return problems
 
 
